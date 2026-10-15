@@ -1,0 +1,58 @@
+name: Deploy to GitHub Pages
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Validate quiz script and question count
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const vm = require("node:vm");
+          const html = fs.readFileSync("index.html", "utf8");
+          const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+          if (scripts.length !== 1) {
+            throw new Error(`Expected one inline script, found ${scripts.length}`);
+          }
+          new vm.Script(scripts[0][1]);
+          const questionCount = (html.match(/category: "/g) || []).length;
+          if (questionCount !== 10) {
+            throw new Error(`Expected 10 questions, found ${questionCount}`);
+          }
+          console.log(`Validated inline script and ${questionCount} questions.`);
+          NODE
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
