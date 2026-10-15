@@ -277,6 +277,7 @@
     .result-copy { max-width: 340px; margin: 10px auto 21px; color: var(--muted); }
     .final-score { margin-bottom: 25px; font-size: 16px; font-weight: 700; }
     .final-score strong { color: var(--purple); font-size: 23px; }
+    .personal-best { margin: -15px 0 25px; color: var(--muted); font-size: 14px; font-weight: 650; }
     .restart { padding-inline: 22px; }
 
     .footer {
@@ -355,6 +356,7 @@
       <h1 id="result-title">Stellar work!</h1>
       <p class="result-copy" id="result-copy"></p>
       <p class="final-score">Your score: <strong id="final-score">0 / 10</strong></p>
+      <p class="personal-best" id="personal-best" aria-live="polite" aria-atomic="true"></p>
       <button class="restart" id="restart-button" type="button">Explore again <span aria-hidden="true">↻</span></button>
     </section>
 
@@ -445,8 +447,24 @@
     const answersEl = document.getElementById("answers");
     const feedbackEl = document.getElementById("feedback");
     const nextButton = document.getElementById("next-button");
+    const personalBestEl = document.getElementById("personal-best");
+    const personalBestKey = "orbitQuizBestScore";
     let current = 0;
     let score = 0;
+    let bestScore = null;
+    let canPersistBest = true;
+
+    try {
+      const savedBest = localStorage.getItem(personalBestKey);
+      if (savedBest !== null && /^(0|[1-9]\d*)$/.test(savedBest)) {
+        const parsedBest = Number(savedBest);
+        if (Number.isInteger(parsedBest) && parsedBest >= 0 && parsedBest <= questions.length) {
+          bestScore = parsedBest;
+        }
+      }
+    } catch {
+      canPersistBest = false;
+    }
 
     function renderQuestion() {
       const item = questions[current];
@@ -494,6 +512,19 @@
     }
 
     function showResults() {
+      const isFirstBest = bestScore === null;
+      const isNewBest = isFirstBest || score > bestScore;
+      if (isNewBest) {
+        bestScore = score;
+        if (canPersistBest) {
+          try {
+            localStorage.setItem(personalBestKey, String(bestScore));
+          } catch {
+            canPersistBest = false;
+          }
+        }
+      }
+
       questionScreen.hidden = true;
       resultScreen.hidden = false;
       progressText.textContent = "Mission complete";
@@ -501,6 +532,8 @@
       progressFill.style.width = "100%";
       progress.setAttribute("aria-valuenow", "10");
       document.getElementById("final-score").textContent = `${score} / ${questions.length}`;
+      const bestLabel = isFirstBest ? "Your first personal best" : isNewBest ? "New personal best" : "Personal best";
+      personalBestEl.textContent = `${bestLabel}: ${bestScore} / ${questions.length}${canPersistBest ? "" : " — only saved for this visit because browser storage is unavailable."}`;
 
       let reaction, title, copy;
       if (score === questions.length) {
